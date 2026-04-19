@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>JJK: Infinite Domain - Zenith</title>
+    <style>
+        :root {
+            --cursed: #9333ea; --flash: #ef4444; --rct: #10b981;
+            --bg: #020203; --panel: #09090b; --text: #ececec;
+        }
+        body {
+            background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif;
+            margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center;
+        }
+        .screen { display: none; width: 100%; max-width: 900px; background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid #27272a; box-sizing: border-box; }
+        .active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+
+        .btn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 15px; }
+        button {
+            background: #18181b; color: white; border: 1px solid #27272a; padding: 12px 8px;
+            font-weight: 600; cursor: pointer; border-radius: 6px; transition: 0.2s; font-size: 11px; text-transform: uppercase;
+        }
+        button:hover:not(:disabled) { background: var(--cursed); border-color: white; }
+        button:disabled { opacity: 0.2; cursor: not-allowed; }
+
+        /* Combat UI */
+        .hud { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .stats { background: #000; padding: 10px; border: 1px solid #27272a; border-radius: 8px; position: relative; }
+        .bar-bg { background: #18181b; height: 10px; border-radius: 5px; margin: 5px 0; overflow: hidden; border: 1px solid #3f3f46; }
+        .hp-fill { height: 100%; background: #22c55e; width: 100%; transition: width 0.5s; }
+        .ce-fill { height: 100%; background: #3b82f6; width: 100%; transition: width 0.3s; }
+        
+        .log { background: #000; height: 140px; overflow-y: auto; padding: 10px; border: 1px solid #27272a; border-radius: 6px; font-family: monospace; font-size: 12px; margin-bottom: 10px; color: #a1a1aa; }
+        #move-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+        /* Device Specifics */
+        .mobile-ui #move-grid { grid-template-columns: 1fr 1fr; }
+        .mobile-ui button { padding: 16px 5px; font-size: 12px; }
+    </style>
+</head>
+<body id="game-body">
+
+    <h1 style="color:var(--cursed); margin-bottom:10px;">INFINITE DOMAIN</h1>
+
+    <div id="scr-setup" class="screen active">
+        <h2 style="text-align:center">Domain Connection</h2>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
+            <button onclick="setMode('bot')">Solo vs Bot</button>
+            <button onclick="setMode('1v1')">Local 1v1</button>
+            <button onclick="setDevice('pc')">Laptop/PC UI</button>
+            <button onclick="setDevice('mobile')">Mobile UI</button>
+        </div>
+    </div>
+
+    <div id="scr-char" class="screen">
+        <h2 id="char-title">Select Sorcerer</h2>
+        <div class="btn-grid" id="roster"></div>
+    </div>
+
+    <div id="scr-arc" class="screen">
+        <h2>Select Time Period</h2>
+        <div class="btn-grid" id="arcs"></div>
+    </div>
+
+    <div id="scr-battle" class="screen">
+        <div class="hud">
+            <div class="stats" id="p1-card">
+                <b id="p1-n"></b>
+                <div class="bar-bg"><div id="p1-h-bar" class="hp-fill"></div></div>
+                <div class="bar-bg"><div id="p1-c-bar" class="ce-fill"></div></div>
+                <small id="p1-s"></small>
+            </div>
+            <div class="stats" id="p2-card">
+                <b id="p2-n"></b>
+                <div class="bar-bg"><div id="p2-h-bar" class="hp-fill" style="background:var(--flash)"></div></div>
+                <div class="bar-bg" id="p2-c-box"><div id="p2-c-bar" class="ce-fill"></div></div>
+                <small id="p2-s"></small>
+            </div>
+        </div>
+        <div class="log" id="log"></div>
+        <div id="move-grid"></div>
+        <button onclick="location.reload()" style="width:100%; margin-top:10px; border-color:#ef4444; color:#ef4444;">Retreat</button>
+    </div>
+
+<script>
+    const ARCS = [
+        { n: "Cursed Womb", m: 1, boss: "Special Grade Bearer", hp: 3000, dmg: 60 },
+        { n: "Vs. Mahito", m: 15, boss: "Mahito", hp: 45000, dmg: 850 },
+        { n: "Kyoto Goodwill", m: 60, boss: "Hanami", hp: 180000, dmg: 3200 },
+        { n: "Death Painting", m: 150, boss: "Eso & Kechizu", hp: 600000, dmg: 9000 },
+        { n: "Hidden Inventory", m: 350, boss: "Toji Fushiguro", hp: 1500000, dmg: 18000 },
+        { n: "Shibuya Part I", m: 800, boss: "Jogo", hp: 6000000, dmg: 45000 },
+        { n: "Shibuya Part II", m: 1200, boss: "Dagon", hp: 9000000, dmg: 70000 },
+        { n: "Shibuya Finale", m: 2000, boss: "Mahito (ISODK)", hp: 20000000, dmg: 100000 },
+        { n: "Culling Game I", m: 4000, boss: "Kashimo", hp: 45000000, dmg: 250000 },
+        { n: "Culling Game II", m: 7000, boss: "Curse Naoya", hp: 100000000, dmg: 600000 },
+        { n: "Shinjuku P1", m: 12000, boss: "Meguna", hp: 300000000, dmg: 1500000 },
+        { n: "Ultimate Finale", m: 30000, boss: "Sukuna (True Form)", hp: 999999999, dmg: 5000000 }
+    ];
+
+    const CHARS = {
+        "yuji": { name: "Yuji Itadori", hp: 2000, ce: 300, moves: [{n:"Punch",p:100,c:0},{n:"Divergent Fist",p:300,c:20},{n:"Black Flash",p:1500,c:10,f:true},{n:"Soul Cleave",p:2800,c:150},{n:"Blood Pierce",p:1200,c:80},{n:"Simple Domain",p:0,c:50}] },
+        "gojo": { name: "Satoru Gojo", hp: 3500, ce: 1000, moves: [{n:"Blue",p:350,c:40},{n:"Red",p:700,c:100},{n:"Hollow Purple",p:3000,c:600},{n:"Unlimited Void",p:12000,c:950},{n:"RCT Heal",p:-1000,c:200}] },
+        "sukuna": { name: "Ryomen Sukuna", hp: 4000, ce: 1500, moves: [{n:"Dismantle",p:250,c:20},{n:"Cleave",p:600,c:80},{n:"Fuga: Open",p:4500,c:550},{n:"World Slash",p:15000,c:1400},{n:"RCT Heal",p:-1200,c:250}] },
+        "megumi": { name: "Megumi Fushiguro", hp: 1000, ce: 500, moves: [{n:"Dogs",p:100,c:20},{n:"Nue",p:250,c:50},{n:"Toad",p:150,c:30},{n:"Max Elephant",p:500,c:120},{n:"Mahoraga",p:12000,c:500}] },
+        "nobara": { name: "Nobara Kugisaki", hp: 900, ce: 300, moves: [{n:"Hammer",p:150,c:10},{n:"Hairpin",p:400,c:50},{n:"Resonance",p:1200,c:120},{n:"Black Flash",p:800,c:0,f:true}] },
+        "yuta": { name: "Yuta Okkotsu", hp: 2200, ce: 2500, moves: [{n:"Sword",p:250,c:0},{n:"Cursed Speech",p:400,c:80},{n:"Rika Beam",p:6000,c:700},{n:"Copy: Thin Ice",p:900,c:100},{n:"RCT Output",p:-2500,c:400}] },
+        "maki": { name: "Maki Zenin", hp: 3000, ce: 0, moves: [{n:"Dragon Bone",p:250,c:0},{n:"Soul Katana",p:900,c:0},{n:"Zero CE Speed",p:500,c:0},{n:"Air Walk Kick",p:400,c:0}] },
+        "toji": { name: "Toji Fushiguro", hp: 3500, ce: 0, moves: [{n:"Playful Cloud",p:350,c:0},{n:"Inverted Spear",p:1000,c:0},{n:"Chain Strike",p:500,c:0},{n:"Glock 17",p:400,c:0}] },
+        "choso": { name: "Choso", hp: 1600, ce: 800, moves: [{n:"Piercing Blood",p:1200,c:100},{n:"Supernova",p:900,c:150},{n:"Blood Edge",p:300,c:20},{n:"Slicing Efficacy",p:500,c:50},{n:"Blood Armor",p:-500,c:60}] },
+        "todo": { name: "Aoi Todo", hp: 1500, ce: 300, moves: [{n:"Boogie Woogie",p:80,c:10},{n:"Big Brother Punch",p:400,c:0},{n:"Black Flash",p:1800,c:0,f:true}] },
+        "hakari": { name: "Kinji Hakari", hp: 1800, ce: 600, moves: [{n:"Kick",p:200,c:10},{n:"Shutter",p:350,c:40},{n:"Gamble (Roll)",p:100,c:500},{n:"Jackpot Heal",p:-6000,c:0}] },
+        "nanami": { name: "Kento Nanami", hp: 1400, ce: 400, moves: [{n:"7:3 Ratio",p:600,c:40},{n:"Collapse",p:1100,c:90},{n:"Overtime Buff",p:0,c:-100}] },
+        "kashimo": { name: "Hajime Kashimo", hp: 1700, ce: 700, moves: [{n:"Staff Strike",p:250,c:0},{n:"Lightning",p:3000,c:200},{n:"Amber Beast",p:15000,c:700}] },
+        "mahito": { name: "Mahito", hp: 1500, ce: 900, moves: [{n:"Soul Hack",p:400,c:50},{n:"Body Repel",p:800,c:120},{n:"Idle Transfig",p:10000,c:800}] },
+        "jogo": { name: "Jogo", hp: 1100, ce: 1000, moves: [{n:"Ember Insects",p:300,c:40},{n:"Disaster Flame",p:900,c:150},{n:"Meteor",p:12000,c:900}] }
+    };
+
+    let p = { mode: 'bot', dev: 'pc', arc: null, turn: 1, p1: null, p2: null };
+
+    function setMode(m) { p.mode = m; show('scr-char'); renderRoster(); }
+    function setDevice(d) { p.dev = d; if(d==='mobile') document.getElementById('game-body').classList.add('mobile-ui'); }
+    function show(id) { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+
+    function renderRoster() {
+        const r = document.getElementById('roster'); r.innerHTML = "";
+        for(let k in CHARS) {
+            let b = document.createElement('button'); b.innerText = CHARS[k].name;
+            b.onclick = () => {
+                if(!p.p1) { p.p1 = {...CHARS[k], ch:0, cc:0}; if(p.mode==='bot') proceedArc(); else document.getElementById('char-title').innerText="Player 2 Select"; }
+                else { p.p2 = {...CHARS[k], ch:0, cc:0}; proceedArc(); }
+            }; r.appendChild(b);
+        }
+    }
+
+    function proceedArc() {
+        show('scr-arc'); const g = document.getElementById('arcs'); g.innerHTML = "";
+        ARCS.forEach(a => {
+            let b = document.createElement('button'); b.innerHTML = `${a.n}`;
+            b.onclick = () => { p.arc = a; start(); }; g.appendChild(b);
+        });
+    }
+
+    function start() {
+        show('scr-battle');
+        const m = p.arc.m;
+        p.p1.mh = p.p1.hp * m; p.p1.ch = p.p1.mh; p.p1.mc = p.p1.ce * m; p.p1.cc = p.p1.mc;
+        if(p.mode === 'bot') { p.p2 = { name: p.arc.boss, ch: p.arc.hp, mh: p.arc.hp, bot: true }; document.getElementById('p2-c-box').style.display='none'; }
+        else { p.p2.mh = p.p2.hp * m; p.p2.ch = p.p2.mh; p.p2.mc = p.p2.ce * m; p.p2.cc = p.p2.mc; }
+        renderMoves(); update();
+    }
+
+    function handle(move) {
+        let att = p.turn === 1 ? p.p1 : p.p2;
+        let def = p.turn === 1 ? p.p2 : p.p1;
+        if(att.cc < move.c) return;
+        att.cc -= move.c;
+        let d = move.p * p.arc.m;
+        if(move.f && Math.random() < 0.35) { d *= 2.5; addLog("<b>BLACK FLASH!</b>"); }
+        if(move.p < 0) { att.ch += Math.abs(d); if(att.ch > att.mh) att.ch = att.mh; addLog(`${att.name} healed!`); }
+        else { def.ch -= d; addLog(`${att.name} used ${move.n} for ${Math.floor(d).toLocaleString()} dmg.`); }
+        update();
+        if(def.ch <= 0) { addLog(`<b>${def.name} PURGED!</b>`); return; }
+        p.turn = p.turn === 1 ? 2 : 1;
+        if(p.mode==='bot' && p.turn===2) setTimeout(bot, 600);
+        else renderMoves();
+    }
+
+    function bot() {
+        let d = Math.floor(p.arc.dmg * (0.8 + Math.random() * 0.4));
+        p.p1.ch -= d; addLog(`${p.p2.name} hits for ${d.toLocaleString()}!`);
+        p.turn = 1; update(); renderMoves();
+    }
+
+    function renderMoves() {
+        const g = document.getElementById('move-grid'); g.innerHTML = "";
+        const att = p.turn === 1 ? p.p1 : p.p2;
+        att.moves.forEach(m => {
+            let b = document.createElement('button'); b.innerHTML = `${m.n}<br>CE: ${m.c}`;
+            b.onclick = () => handle(m); g.appendChild(b);
+        });
+    }
+
+    function update() {
+        document.getElementById('p1-n').innerText = p.p1.name; document.getElementById('p2-n').innerText = p.p2.name;
+        document.getElementById('p1-h-bar').style.width = (p.p1.ch/p.p1.mh*100) + "%";
+        document.getElementById('p2-h-bar').style.width = (p.p2.ch/p.p2.mh*100) + "%";
+        document.getElementById('p1-s').innerText = `HP: ${Math.floor(p.p1.ch).toLocaleString()}`;
+        document.getElementById('p2-s').innerText = `HP: ${Math.floor(p.p2.ch).toLocaleString()}`;
+    }
+
+    function addLog(m) { const l = document.getElementById('log'); l.innerHTML += `<div>> ${m}</div>`; l.scrollTop = l.scrollHeight; }
+</script>
+</body>
+</html>
